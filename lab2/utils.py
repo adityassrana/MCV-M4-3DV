@@ -1,9 +1,14 @@
-import numpy as np
-from math import ceil
-import matplotlib.pyplot as plt
-from scipy.ndimage import map_coordinates
+import sys
 import random
+import math
+
+import numpy as np
+import matplotlib.pyplot as plt
 import plotly.graph_objects as go
+
+from math import ceil
+from scipy.ndimage import map_coordinates
+
 
 def plot_img(img, do_not_use=[0]):
     plt.figure(do_not_use[0])
@@ -68,26 +73,126 @@ def apply_H_fixed_image_size(I, H, corners):
 
 def Normalise_last_coord(x):
     xn = x  / x[2,:]
-    
     return xn
 
-def DLT_homography(points1, points2):
-    
-    # ToDo: complete this code .......
 
+
+#-----Helper Functions for DLT_homography
+def normalize_points(points):
+    """
+    Normalize points using a scaling and translation(similarity matrix)
+    such that centroid of the new points is at (0,0) and their average 
+    distance from origin is square root of 2.
+
+    Args:
+        points: points in homogeneous form and in (3, num_points) format
+    Returns:
+        transformed points
+    """
+    means = np.mean(points, axis=1)
+    mean_x = means[0]
+    mean_y = means[1]
+    
+    dist = np.sqrt((np.square(points[0] - mean_x)) + np.square(points[1] - mean_y))
+    mean_dist = np.mean(dist)
+    
+    s = np.sqrt(2)/mean_dist
+    tx = -s*mean_x
+    ty = -s*mean_y
+    
+    T = np.array([[s,0, tx],
+                 [0, s, ty],
+                 [0,0,1]])
+    
+    norm_points = T@points
+    return norm_points, T
+
+def get_equations_from_points(p1, p2):
+    """
+    Form constraints required for solving homography
+    from a set of point correspondences
+
+    Args:
+        set of points in homogeneous format
+    Returns:
+        set of equations derived from the points
+    """
+    x,y,w = p1;x = x/w;y= y/w
+    
+    x_p,y_p,w_p = p2;x_p = x_p/w_p;y_p = y_p/w_p
+    
+    eq1 = np.array([-x, -y, -1, 0, 0, 0, x*x_p, y*x_p, x_p])
+    eq2 = np.array([0, 0, 0, -x, -y, -1, x*y_p, y*y_p, y_p])
+    return eq1,eq2
+
+
+def DLT_homography(points1, points2):
+    """
+    Computes the Homography based on a given set of correspondences between 2 images.
+
+    points2 = H@pointst1
+
+    Args:
+        set of points in homogeneous form and in (3, num_points) format
+
+    Returns:
+        Homography relating points1 to points2
+    """
+    #normalize the points
+    points1, T1 = normalize_points(points1)
+    points2, T2 = normalize_points(points2)
+    
+    num_points = points1.shape[1]
+    Eq_list = []
+    for point1, point2 in zip(points1.T,points2.T):
+        eq1,eq2 = get_equations_from_points(point1,point2)
+        Eq_list.append(eq1)
+        Eq_list.append(eq2)
+        
+    Eq = np.array(Eq_list)
+    
+    U,D,Vt = np.linalg.svd(Eq)
+    
+    # take the last row of V_transpose
+    # this is equivalent to taking the last column of V
+    H_tilde = np.reshape(Vt[-1],(3,3))
+    
+    T2_inv = np.linalg.inv(T2)
+    
+    H = T2_inv@H_tilde@T1
+    
+    #normalize
+    H = H/H[-1,-1]
+    
     return H
 
-def Inliers(H, points1, points2, th):
-    
+def Inliers(H, x, xp, th):
+    '''
+    Computes the inliers on a set of putative correspondeces for a given transformation.
+    Input:
+        - H: 3 x 3 homography
+        - x: Points on image 1 in the format (3, num points)
+        - xp: Points on image 2 in the format (3, num points)
+        - th: distance threshold. Pairs with a distance smaller than th will be considered inliers
+    Returns:
+        - numpy array containing the indeces of the inliers
+    '''
     # Check that H is invertible
     if abs(math.log(np.linalg.cond(H))) > 15:
         idx = np.empty(1)
         return idx
     
-    
-    # ToDo: complete this code .......
-    
-    return
+    trans_x = H@x
+    trans_xp = np.linalg.inv(H)@xp
+
+    # Normalize
+    x /= x[2,:]
+    xp /= xp[2,:]
+    trans_x /= trans_x[2,:]
+    trans_xp /= trans_xp[2,:]
+
+    dist = np.sum(np.square(xp - trans_x), axis=0) + np.sum(np.square(trans_xp - x), axis=0)
+    return np.where(dist < th*th)[0]
 
 def Ransac_DLT_homography(points1, points2, th, max_it):
     
