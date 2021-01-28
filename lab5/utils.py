@@ -22,7 +22,7 @@ if debug > 2:
 debug_display = True
 normalise = True  # activate coordinate normalisation
 opencv = True  # whether use opencv or matplot to display images
-path_imgs = "path/to/lab5/Data/"
+path_imgs = "../../Data_Lab5/"
 
 def read_image(n):
     # Read an image from file. This method assumes images are a numbered sequence
