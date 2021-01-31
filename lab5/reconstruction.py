@@ -10,8 +10,14 @@ from scipy import optimize as opt
 def compute_proj_camera(F, i):
     # Result 9.15 of MVG (v = 0, lambda = 1). It assumes P1 = [I|0]
 
-    ...
+    # compute epipole e'
+    e = mth.nullspace(F.T)
 
+    # build [e']_x
+    ske = mth.hat_operator(e)
+
+    # compute P
+    P = np.concatenate((ske@F, e), axis=1)
     return P
 
 def estimate_3d_points_2(P1, P2, xr1, xr2):
@@ -42,8 +48,13 @@ def estimate_3d_points_2(P1, P2, xr1, xr2):
 
 def compute_reproj_error(X, P1, P2, xr1, xr2):
     # project 3D points using P
+    xp1 = P1@X
+    xp2 = P2@X
+    xp1 = euclid(xp1.T).T
+    xp2 = euclid(xp2.T).T
 
-    ...
+    # compute reprojection error
+    error = np.sum(np.sum((xr1-xp1)**2)+np.sum((xr2-xp2)**2))
 
     return error
 
@@ -51,7 +62,10 @@ def compute_reproj_error(X, P1, P2, xr1, xr2):
 def transform(aff_hom, Xprj, cams_pr):
     # Algorithm 19.2 of MVG
 
-    ...
+    Xaff = aff_hom@Xprj
+    Xaff = Xaff / Xaff[3, :]
+
+    cams_aff = [cam@np.linalg.inv(aff_hom) for cam in cams_pr]
 
     return Xaff, cams_aff
 
