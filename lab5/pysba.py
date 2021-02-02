@@ -151,8 +151,36 @@ class PySBA:
         return params, points_3d
 
 
+
 def adapt_format_pysba(tracks, cams):
 
-    ...
+    K = np.array([[2362.12, 0, 1520.69], [0, 2366.12, 1006.81], [0, 0, 1]])
+    RT = np.linalg.inv(K)@cams[1]
+
+    t = RT[:,-1]
+    r = cv2.Rodrigues(RT[:,:-1])[0].T[0]
+    camera_params = np.vstack([np.hstack([r,t,[K[0,0],0,0]]), np.hstack([[0,0,0],[0,0,0],[K[0,0],0,0]])])
+
+    points_3d = []
+    points_2d = []
+    camera_indices = []
+    points_2d_indices = []
+
+    for i, track in enumerate(tracks):
+        normalized_3d_point = track.pt / track.pt[3]
+        normalized_3d_point = normalized_3d_point[:3]
+        points_3d.append(normalized_3d_point)
+        for img_num, point in track.ref_views.items():
+            points_2d.append(point)
+            camera_indices.append(img_num)
+            points_2d_indices.append(i)
+
+    points_3d = np.vstack(points_3d)
+    points_2d = np.vstack(points_2d)
+    camera_indices = np.array(camera_indices)
+    points_2d_indices = np.array(points_2d_indices)
+
+    print(points_3d.shape)
+    print(points_2d.shape)
 
     return camera_params, points_3d, points_2d, camera_indices, points_2d_indices
