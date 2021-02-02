@@ -9,16 +9,10 @@ from scipy import optimize as opt
 
 def compute_proj_camera(F, i):
     # Result 9.15 of MVG (v = 0, lambda = 1). It assumes P1 = [I|0]
-
-    # compute epipole e'
-    e = mth.nullspace(F.T)
-
-    # build [e']_x
-    ske = mth.hat_operator(e)
-
-    # compute P
-    P = np.concatenate((ske@F, e), axis=1)
-    return P
+    epipole = mth.nullspace(F.T)
+    skew_symmetric = mth.hat_operator(epipole)
+    proj = np.concatenate((skew_symmetric@F, epipole), axis=1)
+    return proj    
 
 def estimate_3d_points_2(P1, P2, xr1, xr2):
     """
@@ -47,26 +41,21 @@ def estimate_3d_points_2(P1, P2, xr1, xr2):
     return res
 
 def compute_reproj_error(X, P1, P2, xr1, xr2):
-    # project 3D points using P
-    xp1 = P1@X
-    xp2 = P2@X
-    xp1 = euclid(xp1.T).T
-    xp2 = euclid(xp2.T).T
-
-    # compute reprojection error
-    error = np.sum(np.sum((xr1-xp1)**2)+np.sum((xr2-xp2)**2))
-
-    return error
+    """
+    Calculate reprojection error after projective triangulation
+    """
+    xp1 = euclid((P1@X).T).T
+    xp2 = euclid((P2@X).T).T
+    return np.sum(np.sum((xp1-xr1)**2)+np.sum((xp2-xr2)**2))
 
 
 def transform(aff_hom, Xprj, cams_pr):
     # Algorithm 19.2 of MVG
-
+    # transform and normalize
     Xaff = aff_hom@Xprj
     Xaff = Xaff / Xaff[3, :]
-
-    cams_aff = [cam@np.linalg.inv(aff_hom) for cam in cams_pr]
-
+    aff_hom_inv = np.linalg.inv(aff_hom)
+    cams_aff = [cam@aff_hom_inv for cam in cams_pr]
     return Xaff, cams_aff
 
 
