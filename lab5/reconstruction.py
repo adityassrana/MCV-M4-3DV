@@ -5,6 +5,7 @@ import utils as h
 import maths as mth
 
 from scipy import optimize as opt
+from resection import get_camera_projection_matrix_RANSAC
 
 
 def compute_proj_camera(F, i):
@@ -14,7 +15,7 @@ def compute_proj_camera(F, i):
     proj = np.concatenate((skew_symmetric@F, epipole), axis=1)
     return proj    
 
-def estimate_3d_points_2(P1, P2, xr1, xr2):
+def estimate_3d_points(P1, P2, xr1, xr2):
     """
     Linear triangulation (Hartley ch 12.2 pg 312) to find the 3D point X
     where p1 = m1 * X and p2 = m2 * X. Solve AX = 0.
@@ -60,9 +61,29 @@ def transform(aff_hom, Xprj, cams_pr):
 
 
 def resection(tracks, i):
-    # extract 3D-2D correspondences from tracks
+    # we extract the image-world correspondences from the tracks
+    X = []
+    x_ = []
+    for tk in tracks:
+        if tk.pt[3] != 0 and i in tk.views:
+            X.append(tk.pt)
+            x_.append(tk.views[i])
+    X = np.asarray(X)
+    x_ = np.asarray(x_)
+
     
-    ...
+    x_ = homog(x_)
+    
+    P, _ = get_camera_projection_matrix_RANSAC(X.T, x_.T, 5, 1000)
+
+    # Now we minimize the geometric error
+    # TODO
+    
+
+    if h.debug >= 0:
+        print('  Camera projective matrix computed with RANSAC.')
+    if h.debug > 1:
+        print(f'  Matrix: : {P}\n')
 
     return P
 

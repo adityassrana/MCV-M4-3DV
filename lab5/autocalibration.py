@@ -14,7 +14,7 @@ def estimate_aff_hom(cams, vps):
     plane = mth.nullspace(vanish_P.T)
     plane = plane / plane[3, :]
     Hpa = np.identity(4)
-    Hpa[3] = p.T
+    Hpa[3] = plane.T
     return Hpa
 
 def estimate_euc_hom(cams, vps):

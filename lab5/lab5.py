@@ -126,7 +126,7 @@ def main(argv):
                     print("  Resection of camera", i, "performed")
 
             # projective triangulation for 3D structure
-            Xprj = rc.estimate_3d_points_2(cams_pr[i-1], cams_pr[i], xr1, xr2)
+            Xprj = rc.estimate_3d_points(cams_pr[i-1], cams_pr[i], xr1, xr2)
             if h.debug >= 0:
                 print('  Projective reconstruction estimated')
 
@@ -173,7 +173,7 @@ def main(argv):
             # (reuse your code)
             if i == 1 and with_intrinsics:
                 cams_euc = rc.compute_eucl_cam(F, x1, x2)
-                Xeuc = rc.estimate_3d_points_2(cams_euc[0], cams_euc[1], xr1, xr2)
+                Xeuc = rc.estimate_3d_points(cams_euc[0], cams_euc[1], xr1, xr2)
             else: # compare results with the results from intrinsic camera
                 euc_hom = ac.estimate_euc_hom(cams_aff[i], vps[i])
                 Xeuc, cams_euc = rc.transform(euc_hom, Xaff, cams_aff)
@@ -190,7 +190,7 @@ def main(argv):
 
             if h.debug_display:
                 h.display_3d_points(Xeuc.T[:, :3], x1, imgs_c[i])
-
+                
             # Bundle Adjustment
             # TODO Adapt cameras and 3D points to PySBA format
             cams_ba, X_ba, x_ba, cam_idxs, x_idxs = ba.adapt_format_pysba(tracks, cams_euc)
