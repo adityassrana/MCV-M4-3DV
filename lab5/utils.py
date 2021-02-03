@@ -19,10 +19,10 @@ if debug > 2:
     np.set_printoptions(threshold=sys.maxsize)  # print full arrays
 
 #debug_display = False
-debug_display = True
+debug_display = False
 normalise = True  # activate coordinate normalisation
 opencv = True  # whether use opencv or matplot to display images
-path_imgs = "../../Data_Lab5/"
+path_imgs = "../../Data_Lab5_2/"
 
 def read_image(n):
     # Read an image from file. This method assumes images are a numbered sequence

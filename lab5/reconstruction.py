@@ -74,7 +74,7 @@ def resection(tracks, i):
     
     x_ = homog(x_)
     
-    P, _ = get_camera_projection_matrix_RANSAC(X.T, x_.T, 5, 1000)
+    P = get_camera_projection_matrix_RANSAC(X.T, x_.T, 5, 1000)
 
     # Now we minimize the geometric error
     # TODO

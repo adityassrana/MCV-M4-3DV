@@ -8,6 +8,8 @@ import matplotlib.pyplot as plt
 from math import ceil
 from scipy.ndimage import map_coordinates
 
+from scipy.optimize import least_squares
+from math import ceil
 
 
 def Normalise_last_coord(x):
@@ -132,84 +134,39 @@ def get_camera_projection_matrix(X, x_):
 
 # ----------------------------------- GOLD STANDARD -----------------------------------
 
-from scipy.optimize import least_squares
-from math import ceil
-
-def add_ones_dim(x):
-    return np.array([x[0],x[1],np.ones_like(x[1])])
-
-def remove_ones_dim(x):
-    x = x/x[-1]
-    return np.array([x[0],x[1], x[2]])
-
 def geometric_error_terms(variables, points):
+    P = variables[:12].reshape(3,4)
 
-    H = variables[:12].reshape(3,4)
-
-    npoints = int(len(points)/2)
-    x = points[:npoints]
-    xp = points[npoints:]
+    npoints = int(len(points)/7)
+    dpoints1 = points[:npoints*4] #3D => size 4
+    dpoints2 = points[npoints*4:] #2D => size 3
     
     #reshape back to original sizes
-    x = np.reshape(x,(2,-1))
-    xp = np.reshape(xp,(2,-1))
+    X = np.reshape(dpoints1,(4,-1))
+    x_ = np.reshape(dpoints2,(3,-1))
     
     # get optimal x_hat and x_hatp
-    xhat = variables[9:]
-    xhat = np.reshape(xhat,(2,-1))
-    xhatp = remove_ones_dim(H@add_ones_dim(xhat))
+    Xhat = variables[12:]
+    Xhat = np.reshape(Xhat,(4,-1))
     
-    def get_l2_dist(a,b):
-        return np.sum(np.square(a - b), axis=0)
+    Ppoints = P@Xhat
+    Ppoints /= Ppoints[-1, :]
+    Ppoints = np.concatenate((Ppoints[0,:], Ppoints[1,:], Ppoints[2,:]), axis=0)
     
-    e1 = get_l2_dist(x,xhat)
-    e2 = get_l2_dist(xp, xhatp)
+    e1 = dpoints1 - variables[12:]
+    e2 = dpoints2 - Ppoints
     
-    E = np.concatenate([H.flatten(), e1,e2])
-    return E
+    return np.concatenate((e1, e2), axis=0)
 
-def gold_standard(H, points, kp1, kp2):
 
-    points1 = []
-    points2 = []
+def refine_projective_matrix(P, points3D, points2D):
+    data_points = np.concatenate([points3D.flatten(),points2D.flatten()])
+    variables0 = np.concatenate([P.flatten(),points3D.flatten()])
 
-    for m in points:
-        points1.append([kp1[m[0].queryIdx].pt[0], kp1[m[0].queryIdx].pt[1]])
-        points2.append([kp2[m[0].trainIdx].pt[0], kp2[m[0].trainIdx].pt[1]])
+    result = least_squares(geometric_error_terms, variables0, method='trf', args=([data_points]), verbose=2)
+    Pr = np.reshape(result.x[:12],(3,4))
 
-    points1 = np.asarray(points1)
-    points1 = points1.T
-    points2 = np.asarray(points2)
-    points2 = points2.T
-
-    data_points = np.concatenate([points1.flatten(),points2.flatten()])
-    variables0 = np.concatenate([H.flatten(),points1.flatten()])
-
-    result = least_squares(geometric_error_terms, variables0, method='lm', verbose=1, args=([data_points]))#,  ftol=1,)
-
-    Pr = result.x
-    Hr = np.reshape(Pr[:9],(3,3))
-
-    xhat = Pr[9:]
-    xhat = np.reshape(xhat,(2,-1))
-    xhatp = remove_ones_dim(Hr@add_ones_dim(xhat))
-
-    data_pointsr = np.concatenate([xhat.flatten(),xhatp.flatten()])
-    variables0r = np.concatenate([Hr.flatten(), xhat.flatten()])
-
-    #initial square error
-    old_error = np.mean(geometric_error_terms(variables0, data_points)[:-9])
-    print(f'Old error is {old_error}')
-
-    #final square error
-    new_error = np.mean(geometric_error_terms(variables0r, data_pointsr)[:-9])
-    print(f'New Error is {new_error}')
-
-    points1r = xhat
-    points2r = xhatp
-
-    return Hr, points1r, points2r, points1, points2
-
+    return Pr
 
 
                   
@@ -241,18 +198,16 @@ def Inliers(P, X, x_, th):
 
 
 
-def get_camera_projection_matrix_RANSAC(points1, points2, th, max_it):
-    #print(points1.shape)
-    #print(points2.shape)
-    Ncoords, Npts = points1.shape
+def get_camera_projection_matrix_RANSAC(points3D, points2D, th, max_it):
+    Ncoords, Npts = points3D.shape
     
     it = 0
     best_inliers = np.empty(1)
     
     while it < max_it:
         indices = random.sample(range(1, Npts), 6)
-        P = get_camera_projection_matrix(points1[:,indices], points2[:,indices])
-        inliers = Inliers(P, points1, points2, th)
+        P = get_camera_projection_matrix(points3D[:,indices], points2D[:,indices])
+        inliers = Inliers(P, points3D, points2D, th)
         
         # test if it is the best model so far
         if inliers.shape[0] > best_inliers.shape[0]:
@@ -271,11 +226,10 @@ def get_camera_projection_matrix_RANSAC(points1, points2, th, max_it):
         it += 1
     
     # compute H from all the inliers
-    P = get_camera_projection_matrix(points1[:,best_inliers], points2[:,best_inliers])
-    inliers = best_inliers
+    P = get_camera_projection_matrix(points3D[:,best_inliers], points2D[:,best_inliers])
     
-    #print(P)
-    return P, inliers
+    # we return the refined homography
+    return refine_projective_matrix(P, points3D[:, best_inliers], points2D[:, best_inliers])
 
 
 # ----------------------------------------------------------------------------------------

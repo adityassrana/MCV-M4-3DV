@@ -190,7 +190,7 @@ def main(argv):
 
             if h.debug_display:
                 h.display_3d_points(Xeuc.T[:, :3], x1, imgs_c[i])
-                
+            continue
             # Bundle Adjustment
             # TODO Adapt cameras and 3D points to PySBA format
             cams_ba, X_ba, x_ba, cam_idxs, x_idxs = ba.adapt_format_pysba(tracks, cams_euc)
